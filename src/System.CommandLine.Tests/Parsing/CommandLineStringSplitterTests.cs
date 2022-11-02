@@ -95,5 +95,37 @@ namespace System.CommandLine.Tests.Parsing
                      .Should()
                      .BeEquivalentTo("command", "--raw='{Id:1,Movie Name:The Three Musketeers}'");
         }
+
+        [Theory]
+        [InlineData(@"D:\", @"D:\")]
+        [InlineData(@"\\server\share\path", @"\\server\share\path")]
+        [InlineData(@"""\\server\share\path with spaces""", @"\\server\share\path with spaces")]
+        [InlineData(@"""abc"" d e", @"abc,d,e")]
+        [InlineData(@"a\\\b d""e f""g h", @"a\\\b,de fg,h")]
+        [InlineData(@"a\\\""b c d", @"a\""b,c,d")]
+        [InlineData(@"a\\\\""b c"" d e", @"a\\b c,d,e")]
+        // custom-made cases
+        [InlineData(@"foo""", @"foo")] // ignored quote, cmd does ignore it.
+        [InlineData(@"foo\""", @"foo""")] // ignored quote, cmd does not ignore it.
+
+        // trailing quote unclosed
+        // leading quote unclosed
+        // all of the above with a leading/trailing quoted argument
+
+        // https://github.com/dotnet/command-line-api/issues/1740 double escaped.
+        [InlineData(
+            "\"dotnet publish \\\"xxx.csproj\\\" -c Release -o \\\"./bin/latest/\\\" -r linux-x64 --self-contained false\"",
+            "dotnet publish \"xxx.csproj\" -c Release -o \"./bin/latest/\" -r linux-x64 --self-contained false")]
+        // altered version with less escaping
+        [InlineData(
+            "dotnet publish \"xxx.csproj\" -c Release -o \"./bin/latest/\" -r linux-x64 --self-contained false",
+            "dotnet,publish,xxx.csproj,-c,Release,-o,./bin/latest/,-r,linux-x64,--self-contained,false")]
+        public void It_does_preserve_non_escaping_backslashes(string commandLine, string commaSeparatedResult)
+        {
+            string[] expected = commaSeparatedResult.Split(','); 
+            _splitter.Split(commandLine)
+                     .Should()
+                     .BeEquivalentTo(expected);
+        }
     }
 }

@@ -53,13 +53,13 @@ namespace System.CommandLine.Parsing
                     {
                         switch (seeking)
                         {
-                            case Boundary.WordEnd:
+                            case Boundary.WordEnd: // this is our word end if we don't have quotation.
                                 yield return CurrentToken();
                                 startTokenIndex = pos;
                                 seeking = Boundary.TokenStart;
                                 break;
 
-                            case Boundary.TokenStart:
+                            case Boundary.TokenStart: // ignore leading whitespace.
                                 startTokenIndex = pos;
                                 break;
                         }
@@ -72,12 +72,16 @@ namespace System.CommandLine.Parsing
                         switch (seekingQuote)
                         {
                             case Boundary.QuoteEnd:
-                                yield return CurrentToken();
-                                startTokenIndex = pos;
-                                seekingQuote = Boundary.QuoteStart;
+                                // only reset to QuoteStart if `c` wasn't escaped.
+                                // this is made because users sometimes meant to escape string within their args, i.e: double-escaping.
+                                if (pos > 0 && memory.Span[pos - 1] != '\\')
+                                {
+                                    yield return CurrentToken();
+                                    startTokenIndex = pos;
+                                    seekingQuote = Boundary.QuoteStart;
+                                }
                                 break;
-
-                            case Boundary.QuoteStart:
+                            case Boundary.QuoteStart: // shouldn't `seeking = WordEnd` here?
                                 startTokenIndex = pos + 1;
                                 seekingQuote = Boundary.QuoteEnd;
                                 break;
@@ -122,12 +126,25 @@ namespace System.CommandLine.Parsing
 
             string CurrentToken()
             {
-                return memory.Slice(startTokenIndex, IndexOfEndOfToken()).ToString().Replace("\"", "");
+                //string token = memory.Slice(startTokenIndex, IndexOfEndOfToken()).ToString();
+
+                //if (seekingQuote == Boundary.QuoteStart) // don't replace if we have one quote.
+                //                                         // NOTE: this won't work when other qouted text is within the same token.
+                //                                         // NOTE 2: it should actually work with above since is a different token
+                //{
+                //    token = token.Replace("\"", "");
+                //}
+
+                //return token;
+                string token = memory.Slice(startTokenIndex, IndexOfEndOfToken()).ToString();
+                return Unescape(token);
             }
 
             int IndexOfEndOfToken() => pos - startTokenIndex;
 
             bool IsAtEndOfInput() => pos == memory.Length;
+
+            string Unescape(string currentToken) => currentToken.Replace("\\\"", "\"");
         }
     }
 }
